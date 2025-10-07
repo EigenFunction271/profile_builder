@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Footprint Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .gradient-bg {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #667eea);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <!-- Header -->
+    <nav class="glass shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-fingerprint text-purple-600 text-3xl mr-3"></i>
+                    <h1 class="text-2xl font-bold text-gray-800">Digital Footprint Analyzer</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="config-status" class="hidden">
+                        <span class="px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+                            <i class="fas fa-check-circle"></i> Configured
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <!-- Hero Section -->
+        <div id="hero-section" class="text-center mb-12">
+            <div class="glass rounded-2xl p-12 shadow-2xl">
+                <div class="inline-block p-4 bg-purple-100 rounded-full mb-6">
+                    <i class="fas fa-chart-line text-purple-600 text-5xl"></i>
+                </div>
+                <h2 class="text-4xl font-bold text-gray-800 mb-4">
+                    Analyze Your Digital Footprint
+                </h2>
+                <p class="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+                    Discover insights about your email behavior, communication patterns, and digital presence. 
+                    All analysis happens locally - your data stays private.
+                </p>
+                
+                <!-- Action Buttons -->
+                <div class="flex justify-center space-x-4">
+                    <button id="start-btn" class="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transform hover:scale-105 transition-all shadow-lg">
+                        <i class="fas fa-play mr-2"></i>
+                        Start Analysis
+                    </button>
+                    <button id="stored-accounts-btn" class="px-8 py-4 bg-gray-600 text-white font-bold rounded-lg hover:bg-gray-700 transform hover:scale-105 transition-all shadow-lg">
+                        <i class="fas fa-users mr-2"></i>
+                        Use Stored Account
+                    </button>
+                </div>
+
+                <!-- Features -->
+                <div class="grid md:grid-cols-3 gap-6 mt-12">
+                    <div class="p-6 bg-white rounded-xl shadow-md">
+                        <i class="fas fa-lock text-purple-600 text-3xl mb-3"></i>
+                        <h3 class="font-bold text-lg mb-2">Secure & Private</h3>
+                        <p class="text-gray-600 text-sm">OAuth 2.0 authentication. No data leaves your control.</p>
+                    </div>
+                    <div class="p-6 bg-white rounded-xl shadow-md">
+                        <i class="fas fa-bolt text-purple-600 text-3xl mb-3"></i>
+                        <h3 class="font-bold text-lg mb-2">Fast Analysis</h3>
+                        <p class="text-gray-600 text-sm">Analyzes 100+ emails in seconds using smart algorithms.</p>
+                    </div>
+                    <div class="p-6 bg-white rounded-xl shadow-md">
+                        <i class="fas fa-chart-bar text-purple-600 text-3xl mb-3"></i>
+                        <h3 class="font-bold text-lg mb-2">Detailed Insights</h3>
+                        <p class="text-gray-600 text-sm">Get comprehensive reports about your digital behavior.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Section (Hidden initially) -->
+        <div id="analysis-section" class="hidden">
+            <div class="glass rounded-2xl p-8 shadow-2xl">
+                <!-- Progress -->
+                <div id="progress-container" class="mb-8">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-xl font-bold text-gray-800">Analyzing...</h3>
+                        <span id="progress-text" class="text-purple-600 font-semibold">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4">
+                        <div id="progress-bar" class="bg-gradient-to-r from-purple-500 to-pink-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p id="status-message" class="text-gray-600 mt-2"></p>
+                </div>
+
+                <!-- Results -->
+                <div id="results-container" class="hidden">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                        <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                        Analysis Complete
+                    </h3>
+                    
+                    <!-- User Email -->
+                    <div class="bg-purple-50 rounded-lg p-4 mb-6">
+                        <p class="text-gray-600">Analyzed Account:</p>
+                        <p id="user-email" class="text-xl font-bold text-purple-600"></p>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="grid md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-white rounded-lg p-6 shadow-md text-center">
+                            <i class="fas fa-envelope text-blue-500 text-3xl mb-2"></i>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-total">0</p>
+                            <p class="text-gray-600 text-sm">Total Messages</p>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 shadow-md text-center">
+                            <i class="fas fa-comments text-green-500 text-3xl mb-2"></i>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-threads">0</p>
+                            <p class="text-gray-600 text-sm">Conversations</p>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 shadow-md text-center">
+                            <i class="fas fa-inbox text-purple-500 text-3xl mb-2"></i>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-inbox">0</p>
+                            <p class="text-gray-600 text-sm">Inbox</p>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 shadow-md text-center">
+                            <i class="fas fa-paper-plane text-pink-500 text-3xl mb-2"></i>
+                            <p class="text-3xl font-bold text-gray-800" id="stat-sent">0</p>
+                            <p class="text-gray-600 text-sm">Sent</p>
+                        </div>
+                    </div>
+
+                    <!-- Sample Emails -->
+                    <div class="bg-white rounded-lg p-6 shadow-md">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4">Recent Emails Sample</h4>
+                        <div id="sample-emails" class="space-y-4"></div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-center mt-8 space-x-4">
+                        <button id="new-analysis-btn" class="px-6 py-3 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-all">
+                            <i class="fas fa-redo mr-2"></i>
+                            New Analysis
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Display -->
+                <div id="error-container" class="hidden">
+                    <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-exclamation-circle text-red-500 text-2xl mr-3"></i>
+                            <h4 class="text-lg font-bold text-red-800">Analysis Failed</h4>
+                        </div>
+                        <p id="error-message" class="text-red-700"></p>
+                        <button id="retry-btn" class="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                            <i class="fas fa-redo mr-2"></i>
+                            Try Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stored Accounts Modal -->
+        <div id="accounts-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="glass rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl">
+                <h3 class="text-2xl font-bold text-gray-800 mb-4">Stored Accounts</h3>
+                <div id="accounts-list" class="space-y-2 mb-6"></div>
+                <button id="close-modal-btn" class="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="glass mt-12 py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-600">
+            <p class="mb-2">
+                <i class="fas fa-shield-alt mr-2"></i>
+                Your data is processed securely and never stored on our servers
+            </p>
+            <p class="text-sm">
+                Phase 1: Gmail OAuth + Email Analysis | 
+                <a href="https://github.com" class="text-purple-600 hover:underline">GitHub</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,28 @@
+# Core
+python-dotenv==1.0.0
+pydantic==2.5.0
+
+# Gmail
+google-auth==2.25.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.110.0
+
+# APIs
+google-generativeai==0.3.2
+exa-py==1.0.7
+apify-client==1.5.0
+
+# Utilities
+requests==2.31.0
+python-dateutil==2.8.2
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Testing
+pytest==7.4.3
+pytest-mock==3.12.0
+
