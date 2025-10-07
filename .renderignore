@@ -1,0 +1,31 @@
+# Files to ignore during Render deployment
+
+# Development
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (optional - remove if you want docs on server)
+*.md
+!README.md
+
+# Tests
+tests/
+
+# Local data
+data/
+reports/
+*.db
+
+# Git
+.git/
+.gitignore
+
