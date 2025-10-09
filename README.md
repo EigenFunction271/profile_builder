@@ -19,11 +19,11 @@ A Python application that analyzes Gmail inboxes to create comprehensive digital
 - Automatic token refresh and storage
 - Support for multiple Gmail accounts
 
-### Phase 2: Signal Extraction (Coming Soon)
-- Newsletter identification and categorization
-- Communication style analysis
-- Professional context extraction
-- Activity pattern detection
+### Phase 2: Signal Extraction ✅
+- Newsletter identification and categorization (zero LLM cost)
+- Communication style analysis (formality scoring, emoji detection)
+- Professional context extraction (industry inference, domain analysis)
+- Activity pattern detection (peak hours, thread analysis)
 
 ### Phase 3: Identity Resolution (Coming Soon)
 - Name extraction from email
@@ -183,11 +183,16 @@ After first authentication, the app will automatically use stored credentials. T
 - Email fetching with Gmail API
 - Token storage and refresh
 
-#### 🚧 Phase 2: Signal Extraction (Next)
-- Newsletter detection
-- Communication style analysis
-- Professional context extraction
-- Activity patterns
+#### ✅ Phase 2: Signal Extraction (Complete)
+- Newsletter detection and categorization
+- Communication style analysis (formality, emoji usage)
+- Professional context extraction (industry, contacts)
+- Activity patterns (peak hours, response rates)
+
+#### 🚧 Phase 3: Identity Resolution (Next)
+- Name extraction from emails
+- Social profile search (Exa)
+- AI-powered confidence scoring (Gemini)
 
 #### 📋 Phase 3: Identity Resolution
 - Name extraction
@@ -228,14 +233,14 @@ The project follows these standards:
 
 The application is designed to minimize costs:
 
-| Phase | LLM Usage | Cost per Profile |
-|-------|-----------|------------------|
-| 1. Email Fetching | None | $0.00 |
-| 2. Signal Extraction | None | $0.00 |
-| 3. Identity Resolution | Minimal (Gemini Flash) | ~$0.001 |
-| 4. Profile Enrichment | None (Apify credits) | ~$0.003 |
-| 5. Report Generation | Single call (Gemini Flash 2.0) | ~$0.002 |
-| **Total** | | **<$0.01** |
+| Phase | LLM Usage | Cost per Profile | Status |
+|-------|-----------|------------------|--------|
+| 1. Email Fetching | None | $0.00 | ✅ Complete |
+| 2. Signal Extraction | None | $0.00 | ✅ Complete |
+| 3. Identity Resolution | Minimal (Gemini Flash) | ~$0.001 | 🔜 Next |
+| 4. Profile Enrichment | None (Apify credits) | ~$0.003 | 📋 Planned |
+| 5. Report Generation | Single call (Gemini Flash 2.0) | ~$0.002 | 📋 Planned |
+| **Total** | | **<$0.01** | |
 
 ## Security & Privacy
 
@@ -306,11 +311,11 @@ MIT License - See LICENSE file for details
 ## Roadmap
 
 - [x] Phase 1: Gmail OAuth + Email Fetching
-- [ ] Phase 2: Signal Extraction
+- [x] Phase 2: Signal Extraction
+- [x] Web UI (FastAPI + Tailwind)
 - [ ] Phase 3: Identity Resolution
 - [ ] Phase 4: Profile Enrichment
 - [ ] Phase 5: Report Generation
-- [ ] Web UI (Streamlit/Gradio)
 - [ ] Batch processing
 - [ ] Historical tracking
 - [ ] PDF export

@@ -35,6 +35,10 @@ class Config:
             "https://www.googleapis.com/auth/userinfo.email",
             "openid"
         ]
+        
+        # LLM Analysis Options (Phase 2.5)
+        self.enable_llm_analysis: bool = os.getenv("ENABLE_LLM_ANALYSIS", "false").lower() == "true"
+        self.llm_max_emails_to_analyze: int = int(os.getenv("LLM_MAX_EMAILS_TO_ANALYZE", "10"))
     
     def validate(self) -> list[str]:
         """Validate that required configuration is present
