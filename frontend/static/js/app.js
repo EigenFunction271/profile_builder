@@ -36,6 +36,17 @@ function setupEventListeners() {
 // Start analysis
 async function startAnalysis() {
     try {
+        // Check if we need OAuth first
+        const accountsResponse = await fetch(`${API_BASE}/api/accounts`);
+        const accountsData = await accountsResponse.json();
+        
+        if (accountsData.count === 0) {
+            // No stored accounts - need to authenticate first
+            await startOAuthFlow();
+            return;
+        }
+        
+        // Have stored accounts - proceed with analysis
         showSection('analysis');
         showProgress();
         
@@ -61,6 +72,96 @@ async function startAnalysis() {
     } catch (error) {
         showError(error.message);
     }
+}
+
+// Start OAuth flow (for production deployment)
+async function startOAuthFlow() {
+    try {
+        const response = await fetch(`${API_BASE}/auth/start`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to start authentication');
+        }
+        
+        const data = await response.json();
+        
+        // Store session ID
+        localStorage.setItem('oauth_session_id', data.session_id);
+        
+        // Open OAuth URL in popup or redirect
+        const width = 600;
+        const height = 700;
+        const left = (screen.width / 2) - (width / 2);
+        const top = (screen.height / 2) - (height / 2);
+        
+        const popup = window.open(
+            data.auth_url,
+            'oauth',
+            `width=${width},height=${height},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no`
+        );
+        
+        if (!popup) {
+            // Popup blocked - redirect instead
+            window.location.href = data.auth_url;
+            return;
+        }
+        
+        // Listen for OAuth completion
+        window.addEventListener('message', handleOAuthCallback);
+        
+        // Poll for OAuth completion (fallback if postMessage doesn't work)
+        pollOAuthStatus(data.session_id);
+        
+    } catch (error) {
+        showError('Authentication failed: ' + error.message);
+    }
+}
+
+// Handle OAuth callback message
+function handleOAuthCallback(event) {
+    if (event.data.type === 'oauth_success') {
+        console.log('OAuth successful:', event.data.email);
+        
+        // Clean up
+        window.removeEventListener('message', handleOAuthCallback);
+        localStorage.removeItem('oauth_session_id');
+        
+        // Show success and proceed to analysis
+        alert(`Successfully authenticated as ${event.data.email}!\n\nStarting analysis...`);
+        
+        // Start analysis automatically
+        setTimeout(() => startAnalysis(), 1000);
+    }
+}
+
+// Poll OAuth status (fallback)
+function pollOAuthStatus(sessionId) {
+    const maxAttempts = 60; // 2 minutes
+    let attempts = 0;
+    
+    const interval = setInterval(async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/analysis/status/${sessionId}`);
+            const data = await response.json();
+            
+            if (data.status === 'authenticated') {
+                clearInterval(interval);
+                localStorage.removeItem('oauth_session_id');
+                
+                alert(`Successfully authenticated!\n\nStarting analysis...`);
+                setTimeout(() => startAnalysis(), 1000);
+            }
+        } catch (error) {
+            console.error('Error polling OAuth status:', error);
+        }
+        
+        if (attempts >= maxAttempts) {
+            clearInterval(interval);
+            console.log('OAuth polling timeout');
+        }
+    }, 2000);
 }
 
 // Poll status

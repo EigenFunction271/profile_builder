@@ -9,6 +9,8 @@ import asyncio
 from pathlib import Path
 import uuid
 from datetime import datetime
+import os
+import threading
 
 from ..auth.gmail_oauth import GmailAuthenticator
 from ..email_analysis.fetcher import EmailFetcher
@@ -22,10 +24,11 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS middleware
+# CORS middleware - environment-specific origins
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +43,7 @@ config = load_config()
 
 # In-memory storage for analysis sessions (use Redis in production)
 analysis_sessions: Dict[str, Dict[str, Any]] = {}
+session_lock = threading.Lock()  # Thread safety for concurrent access
 
 
 # Pydantic models
@@ -126,13 +130,14 @@ async def start_auth():
         # Generate auth URL
         auth_url, state = flow.authorization_url(prompt='consent')
         
-        # Store session
-        analysis_sessions[session_id] = {
-            "status": "awaiting_auth",
-            "flow": flow,
-            "state": state,
-            "created_at": datetime.now().isoformat()
-        }
+        # Store session (thread-safe)
+        with session_lock:
+            analysis_sessions[session_id] = {
+                "status": "awaiting_auth",
+                "flow": flow,
+                "state": state,
+                "created_at": datetime.now().isoformat()
+            }
         
         return AuthURLResponse(
             auth_url=auth_url,
@@ -156,14 +161,15 @@ async def start_analysis(
         # Create session
         session_id = str(uuid.uuid4())
         
-        # Initialize session
-        analysis_sessions[session_id] = {
-            "status": "processing",
-            "progress": 0,
-            "message": "Authenticating with Gmail...",
-            "result": None,
-            "created_at": datetime.now().isoformat()
-        }
+        # Initialize session (thread-safe)
+        with session_lock:
+            analysis_sessions[session_id] = {
+                "status": "processing",
+                "progress": 0,
+                "message": "Authenticating with Gmail...",
+                "result": None,
+                "created_at": datetime.now().isoformat()
+            }
         
         # Start background task
         background_tasks.add_task(
@@ -186,10 +192,11 @@ async def start_analysis(
 @app.get("/api/analysis/status/{session_id}", response_model=AnalysisStatus)
 async def get_analysis_status(session_id: str):
     """Get status of analysis"""
-    if session_id not in analysis_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    session = analysis_sessions[session_id]
+    with session_lock:
+        if session_id not in analysis_sessions:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        session = analysis_sessions[session_id].copy()  # Copy to avoid race conditions
     
     return AnalysisStatus(
         session_id=session_id,
@@ -200,17 +207,18 @@ async def get_analysis_status(session_id: str):
     )
 
 
-async def run_analysis_phase1(session_id: str, email: Optional[str] = None):
-    """Run Phase 1 & 2 analysis in background
+def run_analysis_phase1(session_id: str, email: Optional[str] = None):
+    """Run Phase 1 & 2 analysis in background (sync function for blocking I/O)
     
     Args:
         session_id: Session ID
         email: Optional email to analyze specific account
     """
     try:
-        # Update status
-        analysis_sessions[session_id]["progress"] = 10
-        analysis_sessions[session_id]["message"] = "Authenticating..."
+        # Update status (thread-safe)
+        with session_lock:
+            analysis_sessions[session_id]["progress"] = 10
+            analysis_sessions[session_id]["message"] = "Authenticating..."
         
         # Initialize authenticator
         authenticator = GmailAuthenticator(config)
@@ -218,19 +226,34 @@ async def run_analysis_phase1(session_id: str, email: Optional[str] = None):
         # Load or authenticate
         credentials = authenticator.load_credentials(email)
         if not credentials:
-            analysis_sessions[session_id]["status"] = "failed"
-            analysis_sessions[session_id]["message"] = "No stored credentials. Please authenticate first."
+            with session_lock:
+                analysis_sessions[session_id]["status"] = "failed"
+                analysis_sessions[session_id]["message"] = "No stored credentials. Please authenticate first."
+                analysis_sessions[session_id]["progress"] = 0
             return
         
-        analysis_sessions[session_id]["progress"] = 30
-        analysis_sessions[session_id]["message"] = "Fetching email statistics..."
+        # Verify credentials are still valid
+        if credentials.expired and credentials.refresh_token:
+            try:
+                credentials = authenticator.refresh_token(credentials, email)
+            except Exception as e:
+                with session_lock:
+                    analysis_sessions[session_id]["status"] = "failed"
+                    analysis_sessions[session_id]["message"] = f"Failed to refresh credentials: {str(e)}"
+                    analysis_sessions[session_id]["progress"] = 0
+                return
+        
+        with session_lock:
+            analysis_sessions[session_id]["progress"] = 30
+            analysis_sessions[session_id]["message"] = "Fetching email statistics..."
         
         # Initialize fetcher
         fetcher = EmailFetcher(credentials)
         user_email = fetcher.get_user_email()
         
-        analysis_sessions[session_id]["progress"] = 40
-        analysis_sessions[session_id]["message"] = "Fetching recent emails..."
+        with session_lock:
+            analysis_sessions[session_id]["progress"] = 40
+            analysis_sessions[session_id]["message"] = "Fetching recent emails..."
         
         # Get email counts
         counts = fetcher.get_email_count()
@@ -239,15 +262,17 @@ async def run_analysis_phase1(session_id: str, email: Optional[str] = None):
         recent_emails = fetcher.fetch_recent_emails(max_results=100)
         sent_emails = fetcher.fetch_sent_emails(max_results=50)
         
-        analysis_sessions[session_id]["progress"] = 60
-        analysis_sessions[session_id]["message"] = "Extracting email signals..."
+        with session_lock:
+            analysis_sessions[session_id]["progress"] = 60
+            analysis_sessions[session_id]["message"] = "Extracting email signals..."
         
-        # Phase 2: Extract signals
-        extractor = SignalExtractor()
+        # Phase 2: Extract signals (FIX: Pass config parameter)
+        extractor = SignalExtractor(config)
         signals = extractor.extract_all_signals(recent_emails, sent_emails, user_email)
         
-        analysis_sessions[session_id]["progress"] = 90
-        analysis_sessions[session_id]["message"] = "Finalizing results..."
+        with session_lock:
+            analysis_sessions[session_id]["progress"] = 90
+            analysis_sessions[session_id]["message"] = "Finalizing results..."
         
         # Prepare result with Phase 2 signals
         result = {
@@ -308,16 +333,205 @@ async def run_analysis_phase1(session_id: str, email: Optional[str] = None):
             ]
         }
         
-        # Update session
-        analysis_sessions[session_id]["status"] = "completed"
-        analysis_sessions[session_id]["progress"] = 100
-        analysis_sessions[session_id]["message"] = "Analysis complete! (Phase 1 & 2)"
-        analysis_sessions[session_id]["result"] = result
+        # Update session (thread-safe)
+        with session_lock:
+            analysis_sessions[session_id]["status"] = "completed"
+            analysis_sessions[session_id]["progress"] = 100
+            analysis_sessions[session_id]["message"] = "Analysis complete! (Phase 1 & 2)"
+            analysis_sessions[session_id]["result"] = result
         
     except Exception as e:
-        analysis_sessions[session_id]["status"] = "failed"
-        analysis_sessions[session_id]["message"] = f"Error: {str(e)}"
-        analysis_sessions[session_id]["progress"] = 0
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"❌ Analysis error for session {session_id}: {error_details}")
+        
+        with session_lock:
+            analysis_sessions[session_id]["status"] = "failed"
+            analysis_sessions[session_id]["message"] = f"Analysis failed: {str(e)}"
+            analysis_sessions[session_id]["progress"] = 0
+            analysis_sessions[session_id]["error_details"] = error_details
+
+
+@app.get("/auth/start")
+async def start_oauth_flow_web():
+    """Start OAuth flow for web deployment (production)
+    
+    Returns OAuth URL that user should visit to authorize
+    """
+    try:
+        # Create session
+        session_id = str(uuid.uuid4())
+        
+        # Initialize authenticator
+        authenticator = GmailAuthenticator(config)
+        flow = authenticator.get_oauth_flow()
+        
+        # Generate auth URL
+        auth_url, state = flow.authorization_url(
+            access_type='offline',
+            prompt='consent',
+            include_granted_scopes='true'
+        )
+        
+        # Store flow in session for callback
+        with session_lock:
+            analysis_sessions[session_id] = {
+                "status": "awaiting_auth",
+                "flow": flow,
+                "state": state,
+                "created_at": datetime.now().isoformat()
+            }
+        
+        return {
+            "auth_url": auth_url,
+            "session_id": session_id,
+            "state": state
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/oauth2callback")
+async def oauth_callback(code: str, state: str):
+    """Handle OAuth callback from Google
+    
+    This endpoint receives the OAuth code after user authorizes
+    """
+    try:
+        # Find session by state
+        session_id = None
+        with session_lock:
+            for sid, session in analysis_sessions.items():
+                if session.get("state") == state and session.get("status") == "awaiting_auth":
+                    session_id = sid
+                    break
+        
+        if not session_id:
+            return HTMLResponse(content="""
+            <html>
+                <head><title>Authentication Error</title></head>
+                <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                    <h1 style="color: #e53e3e;">❌ Authentication Error</h1>
+                    <p>Session not found or expired. Please try again.</p>
+                    <p><a href="/">Return to Home</a></p>
+                </body>
+            </html>
+            """, status_code=400)
+        
+        with session_lock:
+            session = analysis_sessions[session_id]
+            flow = session.get("flow")
+        
+        if not flow:
+            raise HTTPException(status_code=400, detail="OAuth flow not found")
+        
+        # Exchange code for credentials
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
+        
+        # Save credentials
+        authenticator = GmailAuthenticator(config)
+        fetcher = EmailFetcher(credentials)
+        user_email = fetcher.get_user_email()
+        
+        # Store credentials
+        token_data = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        authenticator.storage.save_token('gmail', user_email, token_data)
+        
+        # Update session
+        with session_lock:
+            analysis_sessions[session_id]["status"] = "authenticated"
+            analysis_sessions[session_id]["user_email"] = user_email
+        
+        # Return success page
+        return HTMLResponse(content=f"""
+        <html>
+            <head>
+                <title>Authentication Successful</title>
+                <meta charset="UTF-8">
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 50px;
+                        background: linear-gradient(-45deg, #667eea, #764ba2);
+                        color: white;
+                        min-height: 100vh;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-direction: column;
+                    }}
+                    .success-box {{
+                        background: white;
+                        color: #333;
+                        padding: 40px;
+                        border-radius: 10px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                        max-width: 500px;
+                    }}
+                    h1 {{ color: #48bb78; margin-bottom: 20px; }}
+                    p {{ font-size: 18px; line-height: 1.6; }}
+                    .email {{ color: #667eea; font-weight: bold; }}
+                    .button {{
+                        display: inline-block;
+                        margin-top: 20px;
+                        padding: 12px 24px;
+                        background: #667eea;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 5px;
+                        font-weight: bold;
+                    }}
+                    .button:hover {{ background: #5568d3; }}
+                </style>
+            </head>
+            <body>
+                <div class="success-box">
+                    <h1>✅ Authentication Successful!</h1>
+                    <p>You have successfully connected your Gmail account:</p>
+                    <p class="email">{user_email}</p>
+                    <p>You can now close this window and return to the application to start your analysis.</p>
+                    <a href="/" class="button">Return to App</a>
+                </div>
+                <script>
+                    // Auto-close after 5 seconds if window was opened as popup
+                    if (window.opener) {{
+                        window.opener.postMessage({{
+                            type: 'oauth_success',
+                            session_id: '{session_id}',
+                            email: '{user_email}'
+                        }}, '*');
+                        setTimeout(() => window.close(), 3000);
+                    }}
+                </script>
+            </body>
+        </html>
+        """)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"OAuth callback error: {error_details}")
+        
+        return HTMLResponse(content=f"""
+        <html>
+            <head><title>Authentication Error</title></head>
+            <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h1 style="color: #e53e3e;">❌ Authentication Failed</h1>
+                <p>Error: {str(e)}</p>
+                <p><a href="/">Return to Home</a></p>
+            </body>
+        </html>
+        """, status_code=500)
 
 
 @app.get("/api/accounts")

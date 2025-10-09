@@ -27,6 +27,14 @@ services:
         sync: false
       - key: DATABASE_PATH
         value: /var/data/tokens.db
+      - key: ALLOWED_ORIGINS
+        value: https://profile-builder.onrender.com
+      - key: OAUTH_REDIRECT_URI
+        value: https://profile-builder.onrender.com/oauth2callback
+      - key: ENABLE_LLM_ANALYSIS
+        value: false
+      - key: LLM_MAX_EMAILS_TO_ANALYZE
+        value: 10
     disk:
       name: data
       mountPath: /var/data

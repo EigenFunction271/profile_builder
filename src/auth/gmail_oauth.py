@@ -28,13 +28,17 @@ class GmailAuthenticator:
         Returns:
             Configured OAuth flow
         """
+        import os
+        # Use environment variable for redirect URI (supports both local and production)
+        redirect_uri = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080")
+        
         client_config = {
             "installed": {
                 "client_id": self.config.google_client_id,
                 "client_secret": self.config.google_client_secret,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost:8080"],
+                "redirect_uris": [redirect_uri],
             }
         }
         
