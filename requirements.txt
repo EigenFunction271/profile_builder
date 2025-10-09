@@ -1,6 +1,7 @@
 # Core
 python-dotenv==1.0.0
-pydantic==2.5.0
+pydantic>=2.11.7
+anyio>=4.7.0
 
 # Gmail
 google-auth==2.25.0
@@ -18,9 +19,10 @@ requests==2.31.0
 python-dateutil==2.8.2
 
 # Web Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.6
+starlette>=0.41.3
 
 # Testing
 pytest==7.4.3

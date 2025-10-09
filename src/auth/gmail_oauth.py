@@ -34,7 +34,7 @@ class GmailAuthenticator:
                 "client_secret": self.config.google_client_secret,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost"],
+                "redirect_uris": ["http://localhost:8080"],
             }
         }
         
@@ -55,8 +55,9 @@ class GmailAuthenticator:
         flow = self.get_oauth_flow()
         
         # Run local server for OAuth callback
+        # Use fixed port 8080 for consistent redirect URI
         credentials = flow.run_local_server(
-            port=0,
+            port=8080,
             authorization_prompt_message='Please visit this URL to authorize: {url}',
             success_message='Authentication successful! You can close this window.',
             open_browser=True
