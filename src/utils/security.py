@@ -6,7 +6,7 @@ import secrets
 from typing import Optional, Dict, Any
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 
 
@@ -39,7 +39,7 @@ class TokenEncryption:
             Fernet cipher instance
         """
         # Use PBKDF2 to derive a proper key
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=b'profile_builder_salt',  # Fixed salt for deterministic key
