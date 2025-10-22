@@ -16,6 +16,7 @@ from ..auth.gmail_oauth import GmailAuthenticator
 from ..email_analysis.fetcher import EmailFetcher
 from ..email_analysis.signal_extractor import SignalExtractor
 from ..utils.config import load_config
+from ..utils.security import get_state_validator, get_csrf_protection
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -24,8 +25,40 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# CORS middleware - environment-specific origins
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+# Validate critical environment variables on startup
+@app.on_event("startup")
+async def validate_environment():
+    """Validate critical configuration on application startup"""
+    config = load_config()
+    missing = config.validate_phase1()
+    
+    if missing:
+        error_msg = f"❌ CRITICAL: Missing required environment variables: {', '.join(missing)}"
+        print(error_msg)
+        print("Application may not function correctly. Please set these in your environment.")
+    
+    # Validate CORS configuration
+    allowed_origins_str = os.getenv("ALLOWED_ORIGINS")
+    if not allowed_origins_str:
+        print("⚠️  WARNING: ALLOWED_ORIGINS not set. Using development defaults.")
+        print("   For production, set ALLOWED_ORIGINS to your deployment URL.")
+    
+    # Validate SECRET_KEY for encryption
+    if not os.getenv("SECRET_KEY"):
+        print("⚠️  WARNING: SECRET_KEY not set. Using ephemeral key (not secure for production)")
+        print("   Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'")
+    
+    print("✅ Environment validation complete")
+
+# CORS middleware - STRICT configuration (no defaults for production)
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS")
+if allowed_origins_str:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",")]
+else:
+    # Development defaults only
+    allowed_origins = ["http://localhost:3000", "http://localhost:8000"]
+    print("🔧 Using development CORS origins (localhost only)")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -127,15 +160,22 @@ async def start_auth():
         authenticator = GmailAuthenticator(config)
         flow = authenticator.get_oauth_flow()
         
-        # Generate auth URL
-        auth_url, state = flow.authorization_url(prompt='consent')
+        # Generate HMAC-signed state
+        state_validator = get_state_validator()
+        secure_state = state_validator.generate_state(session_id)
+        
+        # Generate auth URL with secure state
+        auth_url, _ = flow.authorization_url(
+            prompt='consent',
+            state=secure_state  # Use our HMAC-signed state
+        )
         
         # Store session (thread-safe)
         with session_lock:
             analysis_sessions[session_id] = {
                 "status": "awaiting_auth",
                 "flow": flow,
-                "state": state,
+                "state": secure_state,
                 "created_at": datetime.now().isoformat()
             }
         
@@ -366,11 +406,16 @@ async def start_oauth_flow_web():
         authenticator = GmailAuthenticator(config)
         flow = authenticator.get_oauth_flow()
         
-        # Generate auth URL
-        auth_url, state = flow.authorization_url(
+        # Generate HMAC-signed state
+        state_validator = get_state_validator()
+        secure_state = state_validator.generate_state(session_id)
+        
+        # Generate auth URL with secure state
+        auth_url, _ = flow.authorization_url(
             access_type='offline',
             prompt='consent',
-            include_granted_scopes='true'
+            include_granted_scopes='true',
+            state=secure_state  # Use our HMAC-signed state
         )
         
         # Store flow in session for callback
@@ -378,14 +423,14 @@ async def start_oauth_flow_web():
             analysis_sessions[session_id] = {
                 "status": "awaiting_auth",
                 "flow": flow,
-                "state": state,
+                "state": secure_state,
                 "created_at": datetime.now().isoformat()
             }
         
         return {
             "auth_url": auth_url,
             "session_id": session_id,
-            "state": state
+            "state": secure_state
         }
         
     except Exception as e:
@@ -399,13 +444,18 @@ async def oauth_callback(code: str, state: str):
     This endpoint receives the OAuth code after user authorizes
     """
     try:
-        # Find session by state
+        # Find session by state and validate HMAC
         session_id = None
+        state_validator = get_state_validator()
+        
         with session_lock:
             for sid, session in analysis_sessions.items():
-                if session.get("state") == state and session.get("status") == "awaiting_auth":
-                    session_id = sid
-                    break
+                if session.get("status") == "awaiting_auth":
+                    stored_state = session.get("state")
+                    # Validate both exact match AND HMAC signature
+                    if stored_state == state and state_validator.validate_state(state, sid):
+                        session_id = sid
+                        break
         
         if not session_id:
             return HTMLResponse(content="""

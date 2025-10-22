@@ -25,18 +25,20 @@ services:
         sync: false
       - key: APIFY_API_TOKEN
         sync: false
-      - key: DATABASE_PATH
-        value: /var/data/tokens.db
+      - key: DATABASE_URL
+        sync: false  # Set via Supabase connection string
       - key: ALLOWED_ORIGINS
-        value: https://profile-builder.onrender.com
+        sync: false  # Set to your actual deployment URL
       - key: OAUTH_REDIRECT_URI
-        value: https://profile-builder.onrender.com/oauth2callback
+        sync: false  # Set to your actual deployment URL + /oauth2callback
+      - key: SECRET_KEY
+        sync: false  # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+      - key: SESSION_SECRET
+        sync: false  # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+      - key: CSRF_SECRET
+        sync: false  # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
       - key: ENABLE_LLM_ANALYSIS
         value: false
       - key: LLM_MAX_EMAILS_TO_ANALYZE
         value: 10
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 1
 

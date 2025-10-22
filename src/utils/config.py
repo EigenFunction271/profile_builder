@@ -28,6 +28,7 @@ class Config:
         
         # Database
         self.database_path: str = os.getenv("DATABASE_PATH", "./data/tokens.db")
+        self.database_url: str = os.getenv("DATABASE_URL", "")  # PostgreSQL URL for production
         
         # OAuth scopes for Gmail
         self.gmail_scopes = [
@@ -39,6 +40,11 @@ class Config:
         # LLM Analysis Options (Phase 2.5)
         self.enable_llm_analysis: bool = os.getenv("ENABLE_LLM_ANALYSIS", "false").lower() == "true"
         self.llm_max_emails_to_analyze: int = int(os.getenv("LLM_MAX_EMAILS_TO_ANALYZE", "10"))
+        
+        # Security Configuration
+        self.secret_key: str = os.getenv("SECRET_KEY", "")
+        self.session_secret: str = os.getenv("SESSION_SECRET", "")
+        self.csrf_secret: str = os.getenv("CSRF_SECRET", "")
     
     def validate(self) -> list[str]:
         """Validate that required configuration is present

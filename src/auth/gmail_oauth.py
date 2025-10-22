@@ -5,21 +5,21 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from ..utils.config import Config
-from ..utils.storage import TokenStorage
+from ..utils.storage_postgres import get_token_storage
 
 
 class GmailAuthenticator:
     """Handles Gmail OAuth authentication flow"""
     
-    def __init__(self, config: Config, storage: Optional[TokenStorage] = None):
+    def __init__(self, config: Config, storage=None):
         """Initialize authenticator
         
         Args:
             config: Application configuration
-            storage: Token storage instance (creates new if None)
+            storage: Token storage instance (creates new if None, auto-selects based on env)
         """
         self.config = config
-        self.storage = storage or TokenStorage(config.database_path)
+        self.storage = storage or get_token_storage(config)
         self.scopes = config.gmail_scopes
     
     def get_oauth_flow(self) -> InstalledAppFlow:

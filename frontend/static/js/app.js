@@ -120,8 +120,6 @@ async function startOAuthFlow() {
 // Handle OAuth callback message
 function handleOAuthCallback(event) {
     if (event.data.type === 'oauth_success') {
-        console.log('OAuth successful:', event.data.email);
-        
         // Clean up
         window.removeEventListener('message', handleOAuthCallback);
         localStorage.removeItem('oauth_session_id');
@@ -159,7 +157,7 @@ function pollOAuthStatus(sessionId) {
         
         if (attempts >= maxAttempts) {
             clearInterval(interval);
-            console.log('OAuth polling timeout');
+            // OAuth polling timeout - no action needed, user can retry
         }
     }, 2000);
 }
